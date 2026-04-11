@@ -1,0 +1,13 @@
+kiteconnect==5.0.1
+aiogram==3.4.1
+pandas==2.2.1
+pandas-ta==0.3.14b0
+numpy==1.26.4
+py_vollib_vectorized==0.1.1
+py_vollib==1.0.1
+aiosqlite==0.20.0
+python-dotenv==1.0.1
+apscheduler==3.10.4
+pytz==2024.1
+pydantic-settings==2.2.1
+tenacity==8.2.3
