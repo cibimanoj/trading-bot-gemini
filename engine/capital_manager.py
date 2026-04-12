@@ -5,6 +5,20 @@ from data.broker_fetcher import broker
 
 class CapitalManager:
     @staticmethod
+    def _lot_size_for_leg(leg_data: dict, index_name: str) -> int:
+        raw = leg_data.get("lot_size")
+        if raw is not None:
+            try:
+                n = int(float(raw))
+                if n > 0:
+                    return n
+            except (TypeError, ValueError):
+                pass
+        if index_name == "BANKNIFTY":
+            return settings.BANKNIFTY_LOT_SIZE
+        return settings.NIFTY_LOT_SIZE
+
+    @staticmethod
     def _total_from_kite_basket_response(margins: Any) -> float | None:
         """
         Kite basket margins return initial vs final blocks, each with 'total'.
@@ -42,7 +56,9 @@ class CapitalManager:
         return None
 
     @staticmethod
-    async def calculate_margin_and_lots(strategy: str, legs: dict, current_capital: float) -> tuple[float, int, float]:
+    async def calculate_margin_and_lots(
+        strategy: str, legs: dict, current_capital: float, index_name: str
+    ) -> tuple[float, int, float]:
         """
         Implements Two-Step Validation:
         1. Approximate required margin for the strategy.
@@ -57,9 +73,7 @@ class CapitalManager:
         for leg_type, leg_data in legs.items():
             trade_type = 'SELL' if 'sell' in leg_type else 'BUY'
             
-            # Using 1 lot to find the exact margin required per single unit
-            # For BankNifty it might be 15, Nifty 50, but we assume we know the lot size from leg_data
-            lot_size = leg_data.get('lot_size', 50) 
+            lot_size = CapitalManager._lot_size_for_leg(leg_data, index_name)
             
             margin_params.append({
                 "exchange": "NFO",
@@ -78,12 +92,14 @@ class CapitalManager:
             if parsed is not None:
                 total_margin_per_lot_setup = parsed
             else:
-                total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs)
+                total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs, index_name)
         except Exception:
-            total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs)
+            total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs, index_name)
 
         # Calculate maximum potential structural loss per lot
-        lot_size = list(legs.values())[0].get('lot_size', 50) if legs else 50
+        lot_size = (
+            CapitalManager._lot_size_for_leg(list(legs.values())[0], index_name) if legs else settings.NIFTY_LOT_SIZE
+        )
         max_loss_per_lot = 0
         
         if strategy == "IRON_CONDOR":
@@ -123,9 +139,11 @@ class CapitalManager:
         return total_margin_used, lots, total_margin_per_lot_setup
 
     @staticmethod
-    def approximate_margin(strategy: str, legs: dict) -> float:
+    def approximate_margin(strategy: str, legs: dict, index_name: str) -> float:
         """Approximation based on spread width."""
-        lot_size = list(legs.values())[0].get('lot_size', 50) if legs else 50
+        lot_size = (
+            CapitalManager._lot_size_for_leg(list(legs.values())[0], index_name) if legs else settings.NIFTY_LOT_SIZE
+        )
         
         if strategy == "IRON_CONDOR":
             width_ce = abs(legs['sell_ce']['strike'] - legs['buy_ce']['strike'])

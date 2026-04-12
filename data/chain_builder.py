@@ -2,6 +2,7 @@ import asyncio
 import pandas as pd
 from datetime import datetime, date
 import pytz
+from config import settings
 from data.broker_fetcher import broker
 
 class ChainBuilder:
@@ -31,6 +32,11 @@ class ChainBuilder:
             lower_bound = spot_price - (num_strikes * strike_step)
             upper_bound = spot_price + (num_strikes * strike_step)
             chain = chain[(chain['strike'] >= lower_bound) & (chain['strike'] <= upper_bound)]
+            default_lot = settings.NIFTY_LOT_SIZE if index_symbol == "NIFTY" else settings.BANKNIFTY_LOT_SIZE
+            if "lot_size" not in chain.columns:
+                chain["lot_size"] = default_lot
+            else:
+                chain["lot_size"] = pd.to_numeric(chain["lot_size"], errors="coerce").fillna(default_lot).astype(int)
             return chain, nearest_expiry
             
         chain, nearest_expiry = await asyncio.to_thread(_filter_instruments, df_instruments)

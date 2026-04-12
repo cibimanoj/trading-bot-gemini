@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     # Rolling history for PCR z-score and IV rank when VIX history is missing
     MARKET_SNAPSHOT_LOOKBACK: int = int(os.getenv("MARKET_SNAPSHOT_LOOKBACK", "80"))
+
+    # Exchange lot sizes (override if contract size changes; used when instrument row has no lot_size)
+    NIFTY_LOT_SIZE: int = int(os.getenv("NIFTY_LOT_SIZE", "75"))
+    BANKNIFTY_LOT_SIZE: int = int(os.getenv("BANKNIFTY_LOT_SIZE", "15"))
     
     # DB configuration
     DB_PATH: str = "sqlite.db"

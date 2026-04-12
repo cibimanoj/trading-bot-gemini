@@ -63,6 +63,19 @@ class AnalyzerOrchestrator:
         dmp_val = latest_row.get('DMP', 0)
         dmn_val = latest_row.get('DMN', 0)
 
+        def _finite_scalar(x, default=0.0) -> float:
+            try:
+                v = float(x)
+                if math.isnan(v) or math.isinf(v):
+                    return default
+                return v
+            except (TypeError, ValueError):
+                return default
+
+        adx_val = _finite_scalar(adx_val)
+        dmp_val = _finite_scalar(dmp_val)
+        dmn_val = _finite_scalar(dmn_val)
+
         # 4. Fetch India VIX history for IV Percentile
         # Wait, if we can't fetch VIX easily, let's use the local IV from chain
         
@@ -139,14 +152,16 @@ class AnalyzerOrchestrator:
 
         # 11. Capital Management and Margin
         current_capital = await PortfolioTracker.get_current_capital()
-        margin_used, lots, margin_per_lot = await CapitalManager.calculate_margin_and_lots(strategy, legs, current_capital)
+        margin_used, lots, margin_per_lot = await CapitalManager.calculate_margin_and_lots(
+            strategy, legs, current_capital, index_name
+        )
         
         if lots == 0:
             logger.warning("Insufficient capital to allocate even 1 lot.")
             return None
 
         # 12. Ghost Filter (Temporal Debouncing to prevent spamming identical executions)
-        recent_signals = await db_instance.get_recent_signals(limit=5)
+        recent_signals = await db_instance.get_recent_signals(limit=25)
         for past_signal in recent_signals:
             if past_signal['strategy_type'] == strategy and past_signal['index_name'] == index_name:
                 ts_str = past_signal['timestamp']
@@ -175,7 +190,6 @@ class AnalyzerOrchestrator:
         )
 
         # 13. Format JSON structure for backtest database
-        import math
         formatted_legs = []
         for leg_type, leg_data in signal['legs'].items():
             action = "SELL" if "sell" in leg_type else "BUY"

@@ -81,7 +81,10 @@ class BrokerFetcher:
                     else:
                         logger.warning(f"Stale quote received for {inst}. Delay: {diff}s")
                 else:
-                    fresh_quotes[inst] = data
+                    if inst.startswith("NSE:"):
+                        logger.warning(f"No timestamp for {inst}; quote excluded for freshness.")
+                    else:
+                        fresh_quotes[inst] = data
             return fresh_quotes
 
     async def get_ltp(self, instruments: list[str]) -> dict:
