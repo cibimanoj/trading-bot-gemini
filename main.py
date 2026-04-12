@@ -2,7 +2,7 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher
 
-from config import settings
+from config import settings, telegram_chat_ids
 from db.database import db_instance
 from bot.handlers import router
 from services.scheduler import EngineScheduler
@@ -30,6 +30,12 @@ async def main():
     if not settings.TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN missing in config. Exiting.")
         return
+
+    if not telegram_chat_ids():
+        logger.warning(
+            "TELEGRAM_CHAT_ID is empty or has no valid integer ids: "
+            "Telegram commands will reject everyone until configured."
+        )
 
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
     dp = Dispatcher()

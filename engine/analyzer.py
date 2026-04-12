@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from config import settings
 from data.broker_fetcher import broker
 from data.chain_builder import ChainBuilder
+from data.validator import validate_dataframe
 from engine.indicators import Indicators
 from engine.regime import MarketRegime
 from engine.scoring import Scorer
@@ -14,11 +15,12 @@ from engine.strategy_engine import StrategyEngine
 from engine.capital_manager import CapitalManager
 from engine.signal_engine import SignalEngine
 from engine.portfolio_tracker import PortfolioTracker
+from engine.risk_manager import risk_manager, TradeMode
 from db.database import db_instance
 
 logger = logging.getLogger(__name__)
 
-# Map indices to their Kite instrument tokens for historical data (Example tokens, would need mapping in reality)
+# Map indices to their Kite instrument tokens for historical data (must match Kite instrument master)
 INDEX_TOKENS = {
     "NIFTY": 256265,
     "BANKNIFTY": 260105
@@ -31,6 +33,10 @@ class AnalyzerOrchestrator:
         """
         Full orchestration of market analysis.
         """
+        if risk_manager.mode == TradeMode.HALTED:
+            logger.info("Skipping analysis: risk mode HALTED.")
+            return None
+
         logger.info(f"Starting analysis for {index_name}")
         
         # 1. Fetch spot price
@@ -48,13 +54,19 @@ class AnalyzerOrchestrator:
             return None
 
         # 3. Fetch Historical Data for ADX (Using 15-minute data, last 5 days)
-        token = INDEX_TOKENS.get(index_name, 256265)
+        if index_name not in INDEX_TOKENS:
+            logger.error("Unsupported index_name %r — add token to INDEX_TOKENS.", index_name)
+            return None
+        token = INDEX_TOKENS[index_name]
         to_date = datetime.now()
         from_date = to_date - timedelta(days=5)
         hist_df = await broker.get_historical_data(token, from_date, to_date, "15minute")
         
         if hist_df.empty or len(hist_df) < 15:
             logger.error("Not enough historical data for indicators.")
+            return None
+        if not validate_dataframe(hist_df, ["high", "low", "close"]):
+            logger.error("Historical data missing required OHLC columns.")
             return None
             
         hist_df = Indicators.calculate_adx(hist_df, window=14)
@@ -95,6 +107,10 @@ class AnalyzerOrchestrator:
             logger.error(f"Failed to calculate Greeks: {e}")
             return None
 
+        if not validate_dataframe(chain_df, ["IV", "Delta", "strike", "premium"]):
+            logger.error("Option chain missing IV/Delta or core columns after Greeks.")
+            return None
+
         # 6. Calc PCR and average chain IV
         pcr = Indicators.calculate_pcr(chain_df)
         avg_iv = float(chain_df["IV"].mean())
@@ -111,7 +127,7 @@ class AnalyzerOrchestrator:
         elif math.isnan(pcr_zscore):
             pcr_zscore = 0.0
 
-        # IV percentile: India VIX history when available; else rolling rank of avg_iv from snapshots
+        # IV percentile proxy: VIX close percentile when daily VIX loads; else rolling rank of chain avg_iv (different scales — both feed regime/scoring consistently per branch)
         vix_df = await broker.get_historical_data(
             VIX_TOKEN, datetime.now() - timedelta(days=30), datetime.now(), "day"
         )

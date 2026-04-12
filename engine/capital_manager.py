@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 from config import settings
@@ -121,7 +122,13 @@ class CapitalManager:
             max_loss_per_lot = b_leg.get('premium',0) * lot_size
             
         max_acceptable_loss = current_capital * settings.MAX_LOSS_CAPITAL_PCT
-        lots_by_loss = int(max_acceptable_loss // max_loss_per_lot) if max_loss_per_lot > 0 else float('inf')
+        if (
+            max_loss_per_lot <= 0
+            or not math.isfinite(max_loss_per_lot)
+        ):
+            lots_by_loss = 0
+        else:
+            lots_by_loss = int(max_acceptable_loss // max_loss_per_lot)
 
         # Calculate lots allowed by margin
         if total_margin_per_lot_setup > 0:

@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import Dict, Any
 
+from config import settings
 from engine.regime import RegimeType
 
 from datetime import datetime
@@ -31,6 +32,9 @@ class StrategyEngine:
                 return "NO_TRADE"  # Range but low IV -> bad premium
                 
         elif regime in [RegimeType.TREND_STRONG, RegimeType.TREND_MILD]:
+            # Align with Scorer: directional longs only when IV rank is not extreme (cheap options)
+            if iv_percentile > settings.MAX_IV_PERCENTILE_FOR_DIRECTIONAL_LONG:
+                return "NO_TRADE"
             if bias == "BULLISH":
                 return "BUY_CE"
             elif bias == "BEARISH":

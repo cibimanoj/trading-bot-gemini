@@ -1,12 +1,14 @@
-import asyncio
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram import Bot
 
-from config import settings
+from config import settings, telegram_chat_ids
 from engine.analyzer import AnalyzerOrchestrator
 from bot.formatter import BotFormatter
 from data.broker_fetcher import broker
+from data.cache import cache
+from db.database import db_instance
+from utils.timezone import TimezoneNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,6 @@ class EngineScheduler:
     async def analyze_and_broadcast(self):
         """Task that runs every minute to analyze NIFTY and broadcast updates."""
         from datetime import time
-        from utils.timezone import TimezoneNormalizer
         # Zero-Resource NSE Block: Prevent API execution off-hours
         now_ist = TimezoneNormalizer.now_ist_aware()
         if now_ist.weekday() > 4: return # Sat/Sun block
@@ -35,7 +36,6 @@ class EngineScheduler:
             from engine.risk_manager import risk_manager
             flushed = await risk_manager.try_midnight_flush()
             if flushed:
-                from data.cache import cache
                 cache.clear()
                 logger.info("Floating 24-hour TTL vaporized purely via Midnight Boundary shift. Cache fully cleared.")
 
@@ -43,13 +43,19 @@ class EngineScheduler:
             # We can just call get_instruments, it uses cache inside
             await broker.get_instruments()
 
+            today_ist = TimezoneNormalizer.now_ist_aware().date().isoformat()
+            if cache.get("db_prune_ist_date") != today_ist:
+                await db_instance.prune_old_rows()
+                cache.set("db_prune_ist_date", today_ist, ttl_seconds=86400 * 4)
+
+            alert_chats = telegram_chat_ids()
             dd_alert = await risk_manager.sync_drawdown_from_portfolio()
             if dd_alert:
                 logger.warning(dd_alert)
-                if settings.TELEGRAM_CHAT_ID:
+                for chat_id in alert_chats:
                     try:
                         await self.bot.send_message(
-                            chat_id=settings.TELEGRAM_CHAT_ID,
+                            chat_id=chat_id,
                             text=dd_alert,
                             parse_mode="Markdown",
                         )
@@ -58,15 +64,19 @@ class EngineScheduler:
             
             for index in ["NIFTY", "BANKNIFTY"]:
                 signal = await AnalyzerOrchestrator.analyze_market(index)
-                if signal:
+                if signal and alert_chats:
                     msg = BotFormatter.format_signal(signal)
-                    await self.bot.send_message(
-                        chat_id=settings.TELEGRAM_CHAT_ID,
-                        text=msg,
-                        parse_mode="Markdown"
-                    )
-                    # If we find a signal, maybe pause short term or continue. 
-                    # Assuming we continue analyzing other indices.
+                    for chat_id in alert_chats:
+                        try:
+                            await self.bot.send_message(
+                                chat_id=chat_id,
+                                text=msg,
+                                parse_mode="Markdown",
+                            )
+                        except Exception as send_err:
+                            logger.error(f"Failed to send signal alert: {send_err}")
+                elif signal:
+                    logger.warning("Signal generated but no TELEGRAM_CHAT_ID configured; alert not sent.")
                     
         except Exception as e:
             logger.error(f"Error in scheduler tick: {e}", exc_info=True)
@@ -78,7 +88,10 @@ class EngineScheduler:
             self.analyze_and_broadcast,
             "interval",
             seconds=60,
-            id="market_analyzer_job"
+            id="market_analyzer_job",
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=30,
         )
         self.scheduler.start()
         logger.info("Scheduler started.")

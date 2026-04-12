@@ -4,6 +4,7 @@ from datetime import datetime, date
 import pytz
 from config import settings
 from data.broker_fetcher import broker
+from data.validator import validate_dataframe
 
 class ChainBuilder:
     @staticmethod
@@ -96,4 +97,6 @@ class ChainBuilder:
             return chain_df
             
         chain = await asyncio.to_thread(_process_merging, chain, quotes, nearest_expiry)
+        if not validate_dataframe(chain, ["strike", "tradingsymbol", "premium", "type"]):
+            return pd.DataFrame()
         return chain

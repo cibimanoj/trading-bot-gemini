@@ -21,6 +21,7 @@ class Database:
 
     async def init_db(self):
         async with self._connect() as db:
+            await db.execute("PRAGMA journal_mode=WAL")
             # Create signals table
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS signals (
@@ -194,6 +195,48 @@ class Database:
                 rows = await cursor.fetchall()
         vals = [float(r[0]) for r in reversed(rows) if r[0] is not None]
         return vals
+
+    async def prune_old_rows(self) -> None:
+        """
+        Limit table growth: old snapshots/signals by age; portfolio by max row count (keeps newest).
+        Safe to call periodically (e.g. once per day).
+        """
+        snap_days = settings.DB_PRUNE_MARKET_SNAPSHOT_DAYS
+        sig_days = settings.DB_PRUNE_SIGNALS_DAYS
+        max_portfolio = settings.DB_PORTFOLIO_MAX_ROWS
+        async with self._connect() as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute(
+                f"""
+                DELETE FROM market_snapshots
+                WHERE timestamp < datetime('now', '-{snap_days} days')
+                """
+            )
+            await db.execute(
+                f"""
+                DELETE FROM signals
+                WHERE timestamp < datetime('now', '-{sig_days} days')
+                """
+            )
+            await db.execute(
+                f"""
+                DELETE FROM portfolio
+                WHERE id < COALESCE(
+                    (SELECT MIN(id) FROM (
+                        SELECT id FROM portfolio ORDER BY id DESC LIMIT ?
+                    )),
+                    0
+                )
+                """,
+                (max_portfolio,),
+            )
+            await db.commit()
+        logger.info(
+            "DB prune completed (snapshots ≥%sd, signals ≥%sd, portfolio cap %s rows).",
+            snap_days,
+            sig_days,
+            max_portfolio,
+        )
 
 # Global database instance
 db_instance = Database()

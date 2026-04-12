@@ -36,10 +36,36 @@ class Settings(BaseSettings):
     BANKNIFTY_LOT_SIZE: int = int(os.getenv("BANKNIFTY_LOT_SIZE", "15"))
     
     # DB configuration
-    DB_PATH: str = "sqlite.db"
+    DB_PATH: str = os.getenv("DB_PATH", "sqlite.db")
+    # Retention: prune on a schedule (see db.database.prune_old_rows)
+    DB_PRUNE_MARKET_SNAPSHOT_DAYS: int = int(os.getenv("DB_PRUNE_MARKET_SNAPSHOT_DAYS", "45"))
+    DB_PRUNE_SIGNALS_DAYS: int = int(os.getenv("DB_PRUNE_SIGNALS_DAYS", "365"))
+    DB_PORTFOLIO_MAX_ROWS: int = int(os.getenv("DB_PORTFOLIO_MAX_ROWS", "3000"))
+
+    # Trend long options: align with Scorer (cheap IV) — skip directional buys when "IV rank" is too high
+    MAX_IV_PERCENTILE_FOR_DIRECTIONAL_LONG: float = float(
+        os.getenv("MAX_IV_PERCENTILE_FOR_DIRECTIONAL_LONG", "35")
+    )
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
 
 settings = Settings()
+
+
+def telegram_chat_ids() -> list[int]:
+    """Comma-separated TELEGRAM_CHAT_ID values (e.g. private chat + group)."""
+    raw = (settings.TELEGRAM_CHAT_ID or "").strip()
+    if not raw:
+        return []
+    out: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(int(part))
+        except ValueError:
+            continue
+    return out

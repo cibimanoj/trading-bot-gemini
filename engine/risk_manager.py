@@ -38,7 +38,10 @@ class RiskManager:
             self.mode = TradeMode.HALTED
             await self._persist_state()
             if old_mode != TradeMode.HALTED:
-                return "🚫 KILL SWITCH: Daily Max Drawdown reached. All positions closed. Bot shutting down for the day."
+                return (
+                    "🚫 KILL SWITCH: Daily max drawdown reached (≤ -2%). "
+                    "Trading halted for today; close any live positions manually if applicable."
+                )
             return None
 
         # 2. State Machine Transitions
@@ -143,7 +146,10 @@ class RiskManager:
             self.mode = TradeMode.HALTED
             await self._persist_state()
             if old_mode != TradeMode.HALTED:
-                return "🚫 KILL SWITCH: Daily Max Drawdown reached. All positions closed. Bot shutting down for the day."
+                return (
+                    "🚫 KILL SWITCH: Daily max drawdown reached (≤ -2%). "
+                    "Trading halted for today; close any live positions manually if applicable."
+                )
             return None
 
         if self.mode == TradeMode.HALTED:

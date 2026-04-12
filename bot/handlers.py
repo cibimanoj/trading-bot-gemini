@@ -2,13 +2,33 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from config import telegram_chat_ids
 from db.database import db_instance
 from engine.portfolio_tracker import PortfolioTracker
 
 router = Router()
 
+
+def _telegram_chat_allowed(message: Message) -> bool:
+    """Only configured Telegram chat id(s) may use bot commands (comma-separated TELEGRAM_CHAT_ID)."""
+    allowed = telegram_chat_ids()
+    if not allowed:
+        return False
+    return message.chat.id in allowed
+
+
+async def _require_allowed_chat(message: Message) -> bool:
+    """Returns True if the handler should continue; otherwise replies and returns False."""
+    if _telegram_chat_allowed(message):
+        return True
+    await message.answer("Not authorized.")
+    return False
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message):
+    if not await _require_allowed_chat(message):
+        return
     welcome_msg = (
         "🤖 **Headless Options Engine Started**\n\n"
         "I am monitoring NIFTY and BANKNIFTY.\n"
@@ -22,6 +42,8 @@ async def cmd_start(message: Message):
 
 @router.message(Command("status"))
 async def cmd_status(message: Message):
+    if not await _require_allowed_chat(message):
+        return
     capital = await PortfolioTracker.get_current_capital()
     status_msg = (
         "📊 **Engine Status**\n\n"
@@ -34,6 +56,8 @@ async def cmd_status(message: Message):
 @router.message(Command("signals"))
 @router.message(Command("history"))
 async def cmd_history(message: Message):
+    if not await _require_allowed_chat(message):
+        return
     signals = await db_instance.get_recent_signals(limit=5)
     if not signals:
         await message.answer("No recent signals found.")
@@ -49,6 +73,8 @@ async def cmd_history(message: Message):
 
 @router.message(Command("simulate_pl"))
 async def cmd_simulate_pl(message: Message):
+    if not await _require_allowed_chat(message):
+        return
     try:
         parts = (message.text or "").split()
         if len(parts) < 3:
@@ -63,5 +89,5 @@ async def cmd_simulate_pl(message: Message):
         if alert_msg:
             await message.answer(alert_msg)
             
-    except Exception as e:
+    except Exception:
         await message.answer("Usage: /simulate_pl <amount> <win|loss>")
