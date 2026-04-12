@@ -26,7 +26,7 @@ class RiskManager:
             return max(1, base_lots // 2)
         return base_lots
 
-    def update_after_trade(self, is_win: bool, current_drawdown_pct: float) -> str | None:
+    async def update_after_trade(self, is_win: bool, current_drawdown_pct: float) -> str | None:
         """
         Evaluates risk state based on the latest trade outcome and daily drawdown.
         Returns a string alert if the mode changed, otherwise None.
@@ -36,6 +36,7 @@ class RiskManager:
         # 1. Circuit Breaker Hook
         if current_drawdown_pct <= -2.0:
             self.mode = TradeMode.HALTED
+            await self._persist_state()
             if old_mode != TradeMode.HALTED:
                 return "🚫 KILL SWITCH: Daily Max Drawdown reached. All positions closed. Bot shutting down for the day."
             return None
@@ -65,9 +66,7 @@ class RiskManager:
                 self.consecutive_wins = 0
                 self.consecutive_losses += 1
 
-        # Serialize new state to DB
-        import asyncio
-        asyncio.create_task(self._persist_state())
+        await self._persist_state()
 
         # Check if mode changed
         if old_mode != self.mode:
@@ -124,6 +123,48 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Midnight flush parsing failed: {e}")
         return False
+
+    async def sync_drawdown_from_portfolio(self) -> str | None:
+        """
+        Apply daily drawdown limits from current DB capital vs SOD — no trade event required.
+        Use when capital changes outside /simulate_pl (e.g. future broker sync) or on a schedule.
+        """
+        from db.database import db_instance
+
+        current = await db_instance.get_current_capital()
+        sod = await db_instance.get_sod_capital()
+        if sod <= 0:
+            return None
+
+        dd_pct = ((current - sod) / sod) * 100.0
+        old_mode = self.mode
+
+        if dd_pct <= -2.0:
+            self.mode = TradeMode.HALTED
+            await self._persist_state()
+            if old_mode != TradeMode.HALTED:
+                return "🚫 KILL SWITCH: Daily Max Drawdown reached. All positions closed. Bot shutting down for the day."
+            return None
+
+        if self.mode == TradeMode.HALTED:
+            return None
+
+        if self.mode == TradeMode.NORMAL and dd_pct <= -1.0:
+            self.mode = TradeMode.RECOVERY
+            await self._persist_state()
+            if old_mode == TradeMode.NORMAL:
+                return "⚠️ RECOVERY MODE: Drawdown threshold hit. Strategy proving required."
+            return None
+
+        if self.mode == TradeMode.RECOVERY and dd_pct >= -0.5:
+            self.mode = TradeMode.NORMAL
+            self.consecutive_wins = 0
+            self.consecutive_losses = 0
+            await self._persist_state()
+            if old_mode == TradeMode.RECOVERY:
+                return "✅ NORMAL MODE: Drawdown recovered. Resuming full lot size."
+
+        return None
 
 # Global Risk Manager Instance
 risk_manager = RiskManager()

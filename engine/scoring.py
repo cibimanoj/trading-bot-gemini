@@ -27,17 +27,16 @@ class Scorer:
         elif regime == RegimeType.TREND_STRONG and iv_percentile < 30:
             score += 20
             
-        # 4. PCR Z-Score confirmation
-        # High PCR Z-Score corresponds to bullishness
-        if bias == "BULLISH" and pcr_zscore > 1.5:
-            score += 20
-        elif bias == "BEARISH" and pcr_zscore < -1.5:
-            score += 20
-        elif abs(pcr_zscore) > 0.5:
-            score += 10
+        # 4. PCR Z-Score (rolling statistical z; not the same bucket as bias PCR thresholds)
+        if bias == "BULLISH" and pcr_zscore > 1.0:
+            score += 18
+        elif bias == "BEARISH" and pcr_zscore < -1.0:
+            score += 18
+        elif abs(pcr_zscore) > 0.35:
+            score += 8
             
-        # 5. Volatility / Normalization check (bonus points if everything aligns nicely)
-        if score >= 60:
-            score += 20
+        # 5. Tight bonus — avoid inflating marginal setups
+        if score >= 78:
+            score += min(12, 100 - score)
             
         return min(score, 100)

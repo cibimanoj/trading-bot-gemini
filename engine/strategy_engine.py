@@ -46,6 +46,7 @@ class StrategyEngine:
         Hedge legs are chosen mechanically: 3 strikes away for Nifty, 4 strikes for BankNifty
         """
         result = {}
+        option_chain = option_chain.copy()
         # Ensure delta is positive for easier comparison
         option_chain['abs_delta'] = option_chain['Delta'].abs()
         

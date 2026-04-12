@@ -63,19 +63,18 @@ class BrokerFetcher:
             # Data Freshness Validation via strict timezone normalization
             fresh_quotes = {}
             now_ist_naive = TimezoneNormalizer.now_ist_naive()
+            spot_max = settings.QUOTE_STALE_SPOT_SEC
+            nfo_max = settings.QUOTE_STALE_NFO_SEC
             for inst, data in quotes.items():
                 if 'timestamp' in data:
                     diff = (now_ist_naive - data['timestamp']).total_seconds()
-                    
-                    # Divergent Sensitivity Execution Locks
-                    # 1. Spot Tracker (NSE): The signal source of truth. Ultra-strict < 3s latency.
-                    # 2. Option Hedge (NFO): Subject to Bid-Ask and slippage physical gaps. Relaxed < 300s.
+                    # Small negative slack for clock skew vs exchange timestamp
                     if inst.startswith("NSE:"):
-                        is_fresh = (0 <= diff <= 3)
+                        is_fresh = (-5.0 <= diff <= spot_max)
                     elif inst.startswith("NFO:"):
-                        is_fresh = (0 <= diff <= 300)
+                        is_fresh = (-5.0 <= diff <= nfo_max)
                     else:
-                        is_fresh = (0 <= diff <= 10) # Fallback
+                        is_fresh = (-5.0 <= diff <= 10.0)
                         
                     if is_fresh:
                         fresh_quotes[inst] = data
@@ -90,8 +89,8 @@ class BrokerFetcher:
         async with self.semaphore:
             return await asyncio.to_thread(self.kite.ltp, instruments)
             
-    async def get_margins(self, params: list[dict]) -> list[dict]:
-        """Fetch official margin requirements for a list of trades."""
+    async def get_margins(self, params: list[dict]) -> dict:
+        """Fetch basket margin dict (initial/final/orders) from Kite."""
         async with self.semaphore:
             return await asyncio.to_thread(self.kite.basket_order_margins, params, consider_positions=False)
 

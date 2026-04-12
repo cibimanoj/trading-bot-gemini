@@ -1,7 +1,46 @@
+from typing import Any
+
 from config import settings
 from data.broker_fetcher import broker
 
 class CapitalManager:
+    @staticmethod
+    def _total_from_kite_basket_response(margins: Any) -> float | None:
+        """
+        Kite basket margins return initial vs final blocks, each with 'total'.
+        Prefer 'final' (spread / netting benefit); fall back to 'initial'.
+        See https://kite.trade/docs/connect/v3/margins/
+        """
+        if margins is None:
+            return None
+        if isinstance(margins, dict) and isinstance(margins.get("data"), dict):
+            margins = margins["data"]
+        if not isinstance(margins, dict):
+            return None
+
+        def _block_total(block: Any) -> float | None:
+            if not isinstance(block, dict):
+                return None
+            raw = block.get("total")
+            if raw is None:
+                return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+
+        for key in ("final", "initial"):
+            t = _block_total(margins.get(key))
+            if t is not None and t > 0:
+                return t
+
+        legacy = margins.get("initial_margin")
+        t = _block_total(legacy)
+        if t is not None and t > 0:
+            return t
+
+        return None
+
     @staticmethod
     async def calculate_margin_and_lots(strategy: str, legs: dict, current_capital: float) -> tuple[float, int, float]:
         """
@@ -35,8 +74,9 @@ class CapitalManager:
         # Official Kite Margin check (Two-Step Validation Source of Truth)
         try:
             margins = await broker.get_margins(margin_params)
-            if 'initial_margin' in margins and 'total' in margins['initial_margin']:
-                total_margin_per_lot_setup = margins['initial_margin']['total']
+            parsed = CapitalManager._total_from_kite_basket_response(margins)
+            if parsed is not None:
+                total_margin_per_lot_setup = parsed
             else:
                 total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs)
         except Exception:
@@ -49,8 +89,11 @@ class CapitalManager:
         if strategy == "IRON_CONDOR":
             width_ce = abs(legs['sell_ce']['strike'] - legs['buy_ce']['strike'])
             width_pe = abs(legs['sell_pe']['strike'] - legs['buy_pe']['strike'])
-            net_credit = (legs['sell_ce'].get('premium',0) + legs['sell_pe'].get('premium',0)) - (legs['buy_ce'].get('premium',0) + legs['buy_pe'].get('premium',0))
-            max_loss_per_lot = (max(width_ce, width_pe) - net_credit) * lot_size
+            credit_ce = legs['sell_ce'].get('premium', 0) - legs['buy_ce'].get('premium', 0)
+            credit_pe = legs['sell_pe'].get('premium', 0) - legs['buy_pe'].get('premium', 0)
+            max_loss_ce = (width_ce - credit_ce) * lot_size
+            max_loss_pe = (width_pe - credit_pe) * lot_size
+            max_loss_per_lot = max(max_loss_ce, max_loss_pe)
         elif strategy in ["BULL_PUT_SPREAD", "BEAR_CALL_SPREAD"]:
             s_leg = legs.get('sell_ce') or legs.get('sell_pe')
             b_leg = legs.get('buy_ce') or legs.get('buy_pe')

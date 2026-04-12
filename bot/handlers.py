@@ -1,4 +1,5 @@
-from aiogram import Router, Command
+from aiogram import Router
+from aiogram.filters import Command
 from aiogram.types import Message
 
 from db.database import db_instance
@@ -49,7 +50,10 @@ async def cmd_history(message: Message):
 @router.message(Command("simulate_pl"))
 async def cmd_simulate_pl(message: Message):
     try:
-        parts = message.text.split(" ")
+        parts = (message.text or "").split()
+        if len(parts) < 3:
+            await message.answer("Usage: /simulate_pl <amount> <win|loss>")
+            return
         pnl = float(parts[1])
         is_win = parts[2].lower() == "win"
         

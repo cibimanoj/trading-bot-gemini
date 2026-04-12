@@ -1,5 +1,4 @@
 import datetime
-from engine.capital_manager import CapitalManager
 
 class SignalEngine:
     @staticmethod

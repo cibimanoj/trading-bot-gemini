@@ -24,8 +24,9 @@ class EngineScheduler:
         if now_ist.weekday() > 4: return # Sat/Sun block
         
         current_time = now_ist.time()
-        start_time = time(9, 15)
-        end_time = time(15, 30)
+        # Aligned with StrategyEngine session (09:30–15:00 IST)
+        start_time = time(9, 30)
+        end_time = time(15, 0)
         if current_time < start_time or current_time > end_time:
             return # Overnight block
 
@@ -41,6 +42,19 @@ class EngineScheduler:
             # Rehydrate instruments master limit once per day
             # We can just call get_instruments, it uses cache inside
             await broker.get_instruments()
+
+            dd_alert = await risk_manager.sync_drawdown_from_portfolio()
+            if dd_alert:
+                logger.warning(dd_alert)
+                if settings.TELEGRAM_CHAT_ID:
+                    try:
+                        await self.bot.send_message(
+                            chat_id=settings.TELEGRAM_CHAT_ID,
+                            text=dd_alert,
+                            parse_mode="Markdown",
+                        )
+                    except Exception as send_err:
+                        logger.error(f"Failed to send drawdown alert: {send_err}")
             
             for index in ["NIFTY", "BANKNIFTY"]:
                 signal = await AnalyzerOrchestrator.analyze_market(index)

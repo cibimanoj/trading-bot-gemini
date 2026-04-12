@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # Options & Strategy
     RISK_FREE_RATE: float = float(os.getenv("RISK_FREE_RATE", "0.065"))
     MIN_CONFIDENCE_SCORE: int = 75
+
+    # Market data quality (seconds; Kite quote timestamps are naive IST-like)
+    QUOTE_STALE_SPOT_SEC: float = float(os.getenv("QUOTE_STALE_SPOT_SEC", "15"))
+    QUOTE_STALE_NFO_SEC: float = float(os.getenv("QUOTE_STALE_NFO_SEC", "180"))
+
+    # Rolling history for PCR z-score and IV rank when VIX history is missing
+    MARKET_SNAPSHOT_LOOKBACK: int = int(os.getenv("MARKET_SNAPSHOT_LOOKBACK", "80"))
     
     # DB configuration
     DB_PATH: str = "sqlite.db"

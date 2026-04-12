@@ -16,9 +16,12 @@ class PortfolioTracker:
         await db_instance.update_capital(new_capital)
         # Calculate True Daily Drawdown
         sod_capital = await db_instance.get_sod_capital()
-        drawdown_pct = ((new_capital - sod_capital) / sod_capital) * 100.0
+        if sod_capital <= 0:
+            drawdown_pct = 0.0
+        else:
+            drawdown_pct = ((new_capital - sod_capital) / sod_capital) * 100.0
         # Update Risk Manager
-        alert_msg = risk_manager.update_after_trade(is_win=is_win, current_drawdown_pct=drawdown_pct)
+        alert_msg = await risk_manager.update_after_trade(is_win=is_win, current_drawdown_pct=drawdown_pct)
         return alert_msg
         
     @staticmethod

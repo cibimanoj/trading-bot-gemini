@@ -10,21 +10,18 @@ class MarketRegime:
     @staticmethod
     def determine_regime(adx_value: float, iv_percentile: float, pcr: float) -> RegimeType:
         """
-        Determines the market regime based on ADX (trend strength) and IV percentile.
-        - TREND_STRONG: ADX > 25
-        - RANGE: ADX <= 25
-        - IV adds context (high IV generally favors selling in a range, or break out in trend)
+        Regime from ADX (primary), with IV percentile and PCR as context when ADX is weak or borderline.
         """
-        # A simple but effective classification
-        if adx_value > 25:
-            if adx_value > 30:
-                return RegimeType.TREND_STRONG
-            else:
-                return RegimeType.TREND_MILD
-        elif adx_value <= 25 and adx_value > 0:
-            return RegimeType.RANGE
-        else:
+        if adx_value <= 0:
             return RegimeType.UNCLEAR
+
+        if adx_value > 25:
+            return RegimeType.TREND_STRONG if adx_value > 30 else RegimeType.TREND_MILD
+
+        # ADX <= 25: range / chop — IV percentile + PCR flag extremes with no clear credit-spread edge
+        if iv_percentile < 15 and (pcr < 0.65 or pcr > 1.55):
+            return RegimeType.UNCLEAR
+        return RegimeType.RANGE
 
     @staticmethod
     def determine_directional_bias(dmp: float, dmn: float, pcr: float) -> str:

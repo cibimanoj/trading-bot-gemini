@@ -22,6 +22,9 @@ async def main():
     # 1a. Hydrate Risk State
     from engine.risk_manager import risk_manager
     await risk_manager.hydrate_state()
+    cap_alert = await risk_manager.sync_drawdown_from_portfolio()
+    if cap_alert:
+        logger.warning(cap_alert)
 
     # 2. Init Bot
     if not settings.TELEGRAM_BOT_TOKEN:

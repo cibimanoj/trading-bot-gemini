@@ -62,6 +62,20 @@ class Database:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS market_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    index_name TEXT NOT NULL,
+                    pcr REAL,
+                    avg_iv REAL,
+                    iv_percentile REAL
+                )
+            """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshots_index_name ON market_snapshots(index_name)"
+            )
             
             await db.commit()
             logger.info("Database initialized.")
@@ -135,6 +149,51 @@ class Database:
                 rows = await cursor.fetchall()
                 # Convert sqlite3.Row to dict
                 return [dict(row) for row in rows]
+
+    async def insert_market_snapshot(
+        self, index_name: str, pcr: float, avg_iv: float, iv_percentile: float
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                INSERT INTO market_snapshots (index_name, pcr, avg_iv, iv_percentile)
+                VALUES (?, ?, ?, ?)
+                """,
+                (index_name, pcr, avg_iv, iv_percentile),
+            )
+            await db.commit()
+
+    async def get_recent_pcr_values(self, index_name: str, limit: int) -> list[float]:
+        """Oldest-first PCR values from recent snapshots (excludes rows not yet written this tick)."""
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT pcr FROM market_snapshots
+                WHERE index_name = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (index_name, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        vals = [float(r[0]) for r in reversed(rows) if r[0] is not None]
+        return vals
+
+    async def get_recent_avg_iv_values(self, index_name: str, limit: int) -> list[float]:
+        """Oldest-first average IV values for rolling IV rank."""
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT avg_iv FROM market_snapshots
+                WHERE index_name = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (index_name, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        vals = [float(r[0]) for r in reversed(rows) if r[0] is not None]
+        return vals
 
 # Global database instance
 db_instance = Database()

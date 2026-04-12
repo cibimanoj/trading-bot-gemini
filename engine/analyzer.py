@@ -1,4 +1,5 @@
 import logging
+import math
 import asyncio
 import pandas as pd
 from datetime import datetime, timedelta
@@ -81,25 +82,37 @@ class AnalyzerOrchestrator:
             logger.error(f"Failed to calculate Greeks: {e}")
             return None
 
-        # 6. Calc PCR
+        # 6. Calc PCR and average chain IV
         pcr = Indicators.calculate_pcr(chain_df)
-        
-        # 7. Mock / approximate PCR z-score and IV Percentile for simplicity in this headless runner
-        # A robust solution would maintain a rolling DB of these values.
-        # Here we just use a heuristic based on current IV and VIX proxy if available
-        vix_df = await broker.get_historical_data(VIX_TOKEN, datetime.now() - timedelta(days=30), datetime.now(), "day")
+        avg_iv = float(chain_df["IV"].mean())
+        if math.isnan(avg_iv):
+            avg_iv = 0.0
+
+        # 7. Rolling PCR z-score from DB history (current tick appended before insert)
+        lookback = settings.MARKET_SNAPSHOT_LOOKBACK
+        prior_pcr = await db_instance.get_recent_pcr_values(index_name, lookback - 1)
+        pcr_series = pd.Series(prior_pcr + [pcr])
+        pcr_zscore = Indicators.calculate_pcr_zscore(pcr_series)
+        if len(prior_pcr) < 5:
+            pcr_zscore = 0.0
+        elif math.isnan(pcr_zscore):
+            pcr_zscore = 0.0
+
+        # IV percentile: India VIX history when available; else rolling rank of avg_iv from snapshots
+        vix_df = await broker.get_historical_data(
+            VIX_TOKEN, datetime.now() - timedelta(days=30), datetime.now(), "day"
+        )
         if not vix_df.empty and len(vix_df) > 5:
-            iv_percentile = Indicators.iv_percentile(vix_df['close'])
+            iv_percentile = Indicators.iv_percentile(vix_df["close"])
         else:
-            # Fallback IV percentile logic: if local IV is > 0.20, assume high
-            avg_iv = chain_df['IV'].mean()
-            iv_percentile = 75.0 if avg_iv > 0.20 else 40.0
-            
-        pcr_zscore = 0.0 # Default proxy
-        if pcr > 1.2:
-            pcr_zscore = 1.5
-        elif pcr < 0.8:
-            pcr_zscore = -1.5
+            prior_iv = await db_instance.get_recent_avg_iv_values(index_name, lookback - 1)
+            if len(prior_iv) >= 5:
+                iv_series = pd.Series(prior_iv + [avg_iv])
+                iv_percentile = Indicators.iv_percentile(iv_series)
+            else:
+                iv_percentile = 75.0 if avg_iv > 0.20 else 40.0
+
+        await db_instance.insert_market_snapshot(index_name, pcr, avg_iv, iv_percentile)
 
         # 8. Determine Regime and Bias
         regime = MarketRegime.determine_regime(adx_val, iv_percentile, pcr)
