@@ -67,11 +67,11 @@ class ChainBuilder:
                     bid = buy_depth[0]['price'] if buy_depth else data.get('last_price', 0)
                     ask = sell_depth[0]['price'] if sell_depth else data.get('last_price', 0)
                     
-                    if ask > 0 and bid > 0:
+                    if ask > 0 and bid > 0 and ask != bid:
                         spread_pct = (ask - bid) / ask
                         bid_ask_spreads.append(spread_pct)
                     else:
-                        bid_ask_spreads.append(0.0) # default safe fallback if no depth API
+                        bid_ask_spreads.append(1.0) # toxic/illiquid fallback
                 else:
                     ltps.append(0)
                     ois.append(0)

@@ -180,11 +180,14 @@ class AnalyzerOrchestrator:
         recent_signals = await db_instance.get_recent_signals(limit=25)
         for past_signal in recent_signals:
             if past_signal['strategy_type'] == strategy and past_signal['index_name'] == index_name:
-                ts_str = past_signal['timestamp']
+                ts_obj = past_signal['timestamp']
                 try:
                     from datetime import timezone
                     # SQLite CURRENT_TIMESTAMP is stored in UTC
-                    past_time = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    if isinstance(ts_obj, str):
+                        past_time = datetime.strptime(ts_obj, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    else:
+                        past_time = ts_obj.replace(tzinfo=timezone.utc)
                     current_utc = datetime.now(timezone.utc)
                     if (current_utc - past_time).total_seconds() < 900: # 15 min debounce block
                         logger.info(f"Signal {strategy} dropped by Ghost Debounce Filter (Identical trade < 15m ago).")

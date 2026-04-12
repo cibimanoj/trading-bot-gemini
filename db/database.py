@@ -207,16 +207,12 @@ class Database:
         async with self._connect() as db:
             await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
-                f"""
-                DELETE FROM market_snapshots
-                WHERE timestamp < datetime('now', '-{snap_days} days')
-                """
+                "DELETE FROM market_snapshots WHERE timestamp < datetime('now', '-' || ? || ' days')",
+                (snap_days,)
             )
             await db.execute(
-                f"""
-                DELETE FROM signals
-                WHERE timestamp < datetime('now', '-{sig_days} days')
-                """
+                "DELETE FROM signals WHERE timestamp < datetime('now', '-' || ? || ' days')",
+                (sig_days,)
             )
             await db.execute(
                 f"""

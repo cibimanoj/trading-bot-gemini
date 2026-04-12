@@ -111,7 +111,11 @@ class RiskManager:
             
         from datetime import datetime, timezone
         try:
-            last_dt = datetime.strptime(state['updated_at'], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            dt_obj = state['updated_at']
+            if isinstance(dt_obj, str):
+                last_dt = datetime.strptime(dt_obj, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            else:
+                last_dt = dt_obj.replace(tzinfo=timezone.utc)
             current_ist = TimezoneNormalizer.now_ist_aware()
             last_ist = last_dt.astimezone(TimezoneNormalizer.IST)
             

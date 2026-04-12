@@ -1,8 +1,11 @@
 import math
+import logging
 from typing import Any
 
 from config import settings
 from data.broker_fetcher import broker
+
+logger = logging.getLogger(__name__)
 
 class CapitalManager:
     @staticmethod
@@ -93,9 +96,11 @@ class CapitalManager:
             if parsed is not None:
                 total_margin_per_lot_setup = parsed
             else:
-                total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs, index_name)
-        except Exception:
-            total_margin_per_lot_setup = CapitalManager.approximate_margin(strategy, legs, index_name)
+                logger.error("FATAL: Broker returned invalid margin payload structure.")
+                return 0.0, 0, 0.0
+        except Exception as e:
+            logger.error(f"FATAL: Broker margin check failed: {e}. Aborting trade.")
+            return 0.0, 0, 0.0
 
         # Calculate maximum potential structural loss per lot
         lot_size = (

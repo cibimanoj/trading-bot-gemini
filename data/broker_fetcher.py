@@ -31,18 +31,20 @@ class BrokerFetcher:
         if cached is not None:
             return cached
             
+        def _fetch_and_parse():
+            instruments = self.kite.instruments(exchange="NFO") + self.kite.instruments(exchange="NSE")
+            return pd.DataFrame(instruments)
+
         async with self.semaphore:
-            instruments = await asyncio.to_thread(self.kite.instruments)
-            df = pd.DataFrame(instruments)
+            df = await asyncio.to_thread(_fetch_and_parse)
             cache.set("instrument_list", df)
             return df
 
     @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
     async def get_historical_data(self, instrument_token: int, from_date: datetime, to_date: datetime, interval: str) -> pd.DataFrame:
         """Fetches historical data, wrapping Kite's sync API in an async call."""
-        async with self.semaphore:
-            records = await asyncio.to_thread(
-                self.kite.historical_data, 
+        def _fetch_hist():
+            records = self.kite.historical_data(
                 instrument_token, 
                 from_date, 
                 to_date, 
@@ -53,6 +55,9 @@ class BrokerFetcher:
                 df['date'] = pd.to_datetime(df['date'])
                 df.set_index('date', inplace=True)
             return df
+
+        async with self.semaphore:
+            return await asyncio.to_thread(_fetch_hist)
             
     @retry(wait=wait_exponential(multiplier=1, min=1, max=5), stop=stop_after_attempt(3))
     async def get_quote(self, instruments: list[str]) -> dict:

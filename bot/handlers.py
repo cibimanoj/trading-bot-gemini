@@ -21,7 +21,8 @@ async def _require_allowed_chat(message: Message) -> bool:
     """Returns True if the handler should continue; otherwise replies and returns False."""
     if _telegram_chat_allowed(message):
         return True
-    await message.answer("Not authorized.")
+    import logging
+    logging.getLogger(__name__).warning(f"Unauthorized chat attempt blocked from User ID: {message.from_user.id}")
     return False
 
 
@@ -81,7 +82,14 @@ async def cmd_simulate_pl(message: Message):
             await message.answer("Usage: /simulate_pl <amount> <win|loss>")
             return
         pnl = float(parts[1])
-        is_win = parts[2].lower() == "win"
+        win_arg = parts[2].lower()
+        if win_arg not in ["win", "loss"]:
+            await message.answer("Usage: /simulate_pl <amount> <win|loss>")
+            return
+            
+        is_win = (win_arg == "win")
+        if not is_win:
+            pnl = -abs(pnl)
         
         alert_msg = await PortfolioTracker.process_simulated_pl(pnl, is_win)
         
