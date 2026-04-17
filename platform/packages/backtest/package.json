@@ -1,0 +1,13 @@
+{
+  "name": "@ta/backtest",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/run.js",
+    "backtest": "npm run build && node dist/run.js"
+  },
+  "dependencies": {
+    "@ta/shared": "*"
+  }
+}

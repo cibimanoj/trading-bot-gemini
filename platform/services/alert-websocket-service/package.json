@@ -1,0 +1,21 @@
+{
+  "name": "@ta/alert-websocket-service",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ta/shared": "*",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/websocket": "^11.0.1",
+    "fastify": "^5.1.0",
+    "ioredis": "^5.4.1",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13"
+  }
+}
