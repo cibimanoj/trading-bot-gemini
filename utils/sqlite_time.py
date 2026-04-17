@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 
-def parse_sqlite_utc_timestamp(value: Any) -> datetime | None:
+def parse_sqlite_utc_timestamp(value: Any) -> Optional[datetime]:
     """
     Parse a SQLite `CURRENT_TIMESTAMP`-style value as UTC.
 

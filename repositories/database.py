@@ -5,6 +5,7 @@ import sqlite3
 import aiosqlite
 
 from config import settings
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class Database:
             """, (mode, wins, losses))
             await db.commit()
 
-    async def get_risk_state(self) -> dict | None:
+    async def get_risk_state(self) -> Optional[dict]:
         async with self._connect() as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM risk_state WHERE id = 1") as cursor:

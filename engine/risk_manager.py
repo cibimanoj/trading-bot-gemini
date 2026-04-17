@@ -1,5 +1,6 @@
 from enum import Enum
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class RiskManager:
             return max(1, base_lots // 2)
         return base_lots
 
-    async def update_after_trade(self, is_win: bool, current_drawdown_pct: float) -> str | None:
+    async def update_after_trade(self, is_win: bool, current_drawdown_pct: float) -> Optional[str]:
         """
         Evaluates risk state based on the latest trade outcome and daily drawdown.
         Returns a string alert if the mode changed, otherwise None.
@@ -129,7 +130,7 @@ class RiskManager:
             logger.error(f"Midnight flush parsing failed: {e}")
         return False
 
-    async def sync_drawdown_from_portfolio(self) -> str | None:
+    async def sync_drawdown_from_portfolio(self) -> Optional[str]:
         """
         Apply daily drawdown limits from current DB capital vs SOD — no trade event required.
         Use when capital changes outside /simulate_pl (e.g. future broker sync) or on a schedule.

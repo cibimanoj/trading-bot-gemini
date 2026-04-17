@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from data.broker_fetcher import broker
 
@@ -44,7 +45,7 @@ async def run_self_check() -> dict:
         result["notes"].append("instrument master missing required columns")
         return result
 
-    def _resolve(exchange: str, ts: str) -> int | None:
+    def _resolve(exchange: str, ts: str) -> Optional[int]:
         try:
             sub = df[(df["exchange"] == exchange) & (df["tradingsymbol"] == ts)]
             if sub.empty:

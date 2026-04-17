@@ -1,6 +1,6 @@
 import math
 import logging
-from typing import Any
+from typing import Any, Optional, Tuple
 
 from config import settings
 from data.broker_fetcher import broker
@@ -23,7 +23,7 @@ class CapitalManager:
         return settings.NIFTY_LOT_SIZE
 
     @staticmethod
-    def _total_from_kite_basket_response(margins: Any) -> float | None:
+    def _total_from_kite_basket_response(margins: Any) -> Optional[float]:
         """
         Kite basket margins return initial vs final blocks, each with 'total'.
         Prefer 'final' (spread / netting benefit); fall back to 'initial'.
@@ -36,7 +36,7 @@ class CapitalManager:
         if not isinstance(margins, dict):
             return None
 
-        def _block_total(block: Any) -> float | None:
+        def _block_total(block: Any) -> Optional[float]:
             if not isinstance(block, dict):
                 return None
             raw = block.get("total")
@@ -62,7 +62,7 @@ class CapitalManager:
     @staticmethod
     async def calculate_margin_and_lots(
         strategy: str, legs: dict, current_capital: float, index_name: str
-    ) -> tuple[float, int, float]:
+    ) -> Tuple[float, int, float]:
         """
         Implements Two-Step Validation:
         1. Approximate required margin for the strategy.

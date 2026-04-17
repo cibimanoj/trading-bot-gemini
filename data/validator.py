@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
+from typing import List, Dict, Any
 
-def validate_dataframe(df: pd.DataFrame, required_columns: list[str]) -> bool:
+def validate_dataframe(df: pd.DataFrame, required_columns: List[str]) -> bool:
     """Validates that a dataframe has needed columns and is not empty."""
     if df is None or df.empty:
         return False
@@ -9,7 +10,7 @@ def validate_dataframe(df: pd.DataFrame, required_columns: list[str]) -> bool:
         return False
     return True
 
-def validate_quote(quote_data: dict, instruments: list[str]) -> bool:
+def validate_quote(quote_data: Dict[str, Any], instruments: List[str]) -> bool:
     """Validates that quote data contains data for requested instruments."""
     if not quote_data:
         return False

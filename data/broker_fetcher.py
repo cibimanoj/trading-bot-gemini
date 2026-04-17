@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import List, Dict, Any
 import pandas as pd
 from kiteconnect import KiteConnect
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -68,7 +69,7 @@ class BrokerFetcher:
             return await asyncio.to_thread(_fetch_hist)
             
     @retry(wait=wait_exponential(multiplier=1, min=1, max=5), stop=stop_after_attempt(3))
-    async def get_quote(self, instruments: list[str]) -> dict:
+    async def get_quote(self, instruments: List[str]) -> Dict[str, Any]:
         """Fetch real-time snapshot/LTP for a list of instruments (e.g. 'NSE:NIFTY 50')."""
         async with self.semaphore:
             quotes = await asyncio.to_thread(self.kite.quote, instruments)
@@ -113,12 +114,12 @@ class BrokerFetcher:
                     fresh_quotes[inst] = data
             return fresh_quotes
 
-    async def get_ltp(self, instruments: list[str]) -> dict:
+    async def get_ltp(self, instruments: List[str]) -> Dict[str, Any]:
         """Fetch only LTP for a list of instruments."""
         async with self.semaphore:
             return await asyncio.to_thread(self.kite.ltp, instruments)
             
-    async def get_margins(self, params: list[dict]) -> dict:
+    async def get_margins(self, params: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Fetch basket margin dict (initial/final/orders) from Kite."""
         async with self.semaphore:
             return await asyncio.to_thread(self.kite.basket_order_margins, params, consider_positions=False)

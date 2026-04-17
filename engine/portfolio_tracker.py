@@ -1,9 +1,10 @@
 from db.database import db_instance
 from engine.risk_manager import risk_manager
+from typing import Optional
 
 class PortfolioTracker:
     @staticmethod
-    async def process_simulated_pl(pnl: float, is_win: bool) -> str | None:
+    async def process_simulated_pl(pnl: float, is_win: bool) -> Optional[str]:
         """
         Updates the virtual capital based on simulated PnL and updates Risk State.
         Returns an alert string if Risk Mode changes, else None.

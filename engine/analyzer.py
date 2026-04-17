@@ -3,6 +3,7 @@ import math
 import asyncio
 import pandas as pd
 from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any
 
 from config import settings
 from data.broker_fetcher import broker
@@ -32,7 +33,7 @@ def _safe_float(x, default: float = 0.0) -> float:
         return default
 
 
-async def _resolve_instrument_token(exchange: str, tradingsymbol_candidates: list[str]) -> int | None:
+async def _resolve_instrument_token(exchange: str, tradingsymbol_candidates: List[str]) -> Optional[int]:
     """
     Resolve instrument_token via the daily instrument master (cached inside broker.get_instruments()).
     Avoids hardcoding tokens (which can change).
@@ -69,7 +70,7 @@ async def _resolve_instrument_token(exchange: str, tradingsymbol_candidates: lis
 
 class AnalyzerOrchestrator:
     @staticmethod
-    async def analyze_market(index_name: str) -> dict | None:
+    async def analyze_market(index_name: str) -> Optional[Dict[str, Any]]:
         """
         Full orchestration of market analysis.
         """
@@ -209,7 +210,7 @@ class AnalyzerOrchestrator:
             chain_iv_percentile = 75.0 if avg_iv > 0.20 else 40.0
 
         # Optional: VIX percentile (proxy only). Do not feed into strategy thresholds that expect IV rank.
-        vix_percentile: float | None = None
+        vix_percentile: Optional[float] = None
         vix_token = await _resolve_instrument_token("NSE", ["INDIA VIX"])
         if vix_token is not None:
             vix_to = TimezoneNormalizer.now_ist_naive()
@@ -255,7 +256,7 @@ class AnalyzerOrchestrator:
 
         # 12. Ghost Filter (Temporal Debouncing to prevent spamming identical executions)
         recent_signals = await db_instance.get_recent_signals(limit=25)
-        def _legs_signature(sig: dict) -> str:
+        def _legs_signature(sig: Dict[str, Any]) -> str:
             try:
                 details = sig.get("trade_details") or {}
                 legs_list = details.get("legs") or []
