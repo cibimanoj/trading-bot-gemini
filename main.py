@@ -6,11 +6,9 @@ from config import settings, telegram_chat_ids
 from db.database import db_instance
 from bot.handlers import router
 from services.scheduler import EngineScheduler
+from utils.logging_setup import configure_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 async def main():

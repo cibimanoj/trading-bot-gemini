@@ -109,13 +109,11 @@ class RiskManager:
         if not state or not state['updated_at']:
             return False
             
-        from datetime import datetime, timezone
+        from utils.sqlite_time import parse_sqlite_utc_timestamp
         try:
-            dt_obj = state['updated_at']
-            if isinstance(dt_obj, str):
-                last_dt = datetime.strptime(dt_obj, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            else:
-                last_dt = dt_obj.replace(tzinfo=timezone.utc)
+            last_dt = parse_sqlite_utc_timestamp(state.get("updated_at"))
+            if last_dt is None:
+                return False
             current_ist = TimezoneNormalizer.now_ist_aware()
             last_ist = last_dt.astimezone(TimezoneNormalizer.IST)
             

@@ -5,6 +5,7 @@ import pytz
 from config import settings
 from data.broker_fetcher import broker
 from data.validator import validate_dataframe
+from utils.timezone import TimezoneNormalizer
 
 class ChainBuilder:
     @staticmethod
@@ -14,14 +15,24 @@ class ChainBuilder:
         :param index_symbol: e.g. "NIFTY" or "BANKNIFTY"
         """
         df_instruments = await broker.get_instruments()
+        if df_instruments is None or getattr(df_instruments, "empty", True):
+            return pd.DataFrame()
         
         def _filter_instruments(df_instruments):
-            options = df_instruments[(df_instruments['name'] == index_symbol) & 
-                                     (df_instruments['segment'] == 'NFO-OPT')].copy()
+            required = {"name", "segment", "expiry", "strike", "tradingsymbol", "instrument_type"}
+            missing = required - set(df_instruments.columns)
+            if missing:
+                return pd.DataFrame(), None
+
+            options = df_instruments[
+                (df_instruments["name"] == index_symbol)
+                & (df_instruments["segment"] == "NFO-OPT")
+            ].copy()
             if options.empty: return options, None
             
             options['expiry'] = pd.to_datetime(options['expiry']).dt.date
-            today = date.today()
+            # Use IST calendar day to avoid boundary issues around midnight UTC.
+            today = TimezoneNormalizer.now_ist_aware().date()
             future_expiries = options[options['expiry'] >= today]['expiry'].unique()
             if len(future_expiries) == 0: return pd.DataFrame(), None
             
@@ -51,6 +62,8 @@ class ChainBuilder:
             return pd.DataFrame()
             
         quotes = await broker.get_quote(instrument_keys)
+        if not quotes:
+            return pd.DataFrame()
         
         def _process_merging(chain_df, quotes_data, expiry_d):
             ltps, ois, bid_ask_spreads = [], [], []

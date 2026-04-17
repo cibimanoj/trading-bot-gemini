@@ -27,7 +27,10 @@ class BrokerFetcher:
         
     async def get_instruments(self):
         """Fetches and caches the instrument master list once per day."""
-        cached = cache.get("instrument_list")
+        # Keyed by IST calendar date to avoid stale instrument masters across days.
+        day_key = TimezoneNormalizer.now_ist_aware().date().isoformat()
+        cache_key = f"instrument_list:{day_key}"
+        cached = cache.get(cache_key)
         if cached is not None:
             return cached
             
@@ -36,8 +39,13 @@ class BrokerFetcher:
             return pd.DataFrame(instruments)
 
         async with self.semaphore:
-            df = await asyncio.to_thread(_fetch_and_parse)
-            cache.set("instrument_list", df)
+            try:
+                df = await asyncio.to_thread(_fetch_and_parse)
+            except Exception:
+                logger.exception("Failed to fetch instrument master from broker.")
+                return pd.DataFrame()
+            # Keep for a few days to reduce load; scheduler will refresh daily due to key.
+            cache.set(cache_key, df, ttl_seconds=86400 * 4)
             return df
 
     @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))

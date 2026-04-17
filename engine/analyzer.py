@@ -183,11 +183,11 @@ class AnalyzerOrchestrator:
                 ts_obj = past_signal['timestamp']
                 try:
                     from datetime import timezone
-                    # SQLite CURRENT_TIMESTAMP is stored in UTC
-                    if isinstance(ts_obj, str):
-                        past_time = datetime.strptime(ts_obj, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-                    else:
-                        past_time = ts_obj.replace(tzinfo=timezone.utc)
+                    from utils.sqlite_time import parse_sqlite_utc_timestamp
+
+                    past_time = parse_sqlite_utc_timestamp(ts_obj)
+                    if past_time is None:
+                        continue
                     current_utc = datetime.now(timezone.utc)
                     if (current_utc - past_time).total_seconds() < 900: # 15 min debounce block
                         logger.info(f"Signal {strategy} dropped by Ghost Debounce Filter (Identical trade < 15m ago).")

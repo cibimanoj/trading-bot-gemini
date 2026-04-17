@@ -1,5 +1,4 @@
 from db.database import db_instance
-from config import settings
 from engine.risk_manager import risk_manager
 
 class PortfolioTracker:
