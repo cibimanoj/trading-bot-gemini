@@ -7,6 +7,7 @@ from db.database import db_instance
 from bot.handlers import router
 from services.scheduler import EngineScheduler
 from utils.logging_setup import configure_logging
+from services.self_check import run_self_check
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -23,6 +24,16 @@ async def main():
     cap_alert = await risk_manager.sync_drawdown_from_portfolio()
     if cap_alert:
         logger.warning(cap_alert)
+
+    # 1b. Self-check (non-fatal): validate instrument master + token resolution
+    try:
+        report = await run_self_check()
+        if report.get("ok"):
+            logger.info("Self-check OK. Tokens=%s", report.get("tokens"))
+        else:
+            logger.warning("Self-check failed. Report=%s", report)
+    except Exception:
+        logger.exception("Self-check crashed (ignored).")
 
     # 2. Init Bot
     if not settings.TELEGRAM_BOT_TOKEN:

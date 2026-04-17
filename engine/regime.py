@@ -28,8 +28,11 @@ class MarketRegime:
         """
         Returns 'BULLISH', 'BEARISH', or 'NEUTRAL'.
         """
-        if dmp > dmn and pcr > 1.2:
+        # PCR interpretation here is non-contrarian:
+        # - Higher PCR implies heavier put OI vs call OI (often bearish sentiment / hedging).
+        # - Lower PCR implies heavier call OI vs put OI (often bullish sentiment).
+        if dmp > dmn and pcr < 0.8:
             return "BULLISH"
-        elif dmn > dmp and pcr < 0.8:
+        elif dmn > dmp and pcr > 1.2:
             return "BEARISH"
         return "NEUTRAL"

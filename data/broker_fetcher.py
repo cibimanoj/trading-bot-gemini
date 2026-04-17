@@ -100,10 +100,17 @@ class BrokerFetcher:
                     else:
                         logger.warning(f"Stale quote received for {inst}. Delay: {diff}s")
                 else:
-                    if inst.startswith("NSE:"):
-                        logger.warning(f"No timestamp for {inst}; quote excluded for freshness.")
-                    else:
-                        fresh_quotes[inst] = data
+                    # Kite occasionally omits timestamps on some instruments (especially options).
+                    # We keep them (to avoid collapsing the chain), but mark them as unknown-freshness
+                    # so callers can choose to down-weight or filter if needed.
+                    logger.warning(f"No timestamp for {inst}; accepting with unknown freshness.")
+                    try:
+                        if isinstance(data, dict):
+                            data = dict(data)
+                            data["_freshness"] = "unknown"
+                    except Exception:
+                        pass
+                    fresh_quotes[inst] = data
             return fresh_quotes
 
     async def get_ltp(self, instruments: list[str]) -> dict:

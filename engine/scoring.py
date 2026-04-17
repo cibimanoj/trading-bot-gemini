@@ -28,9 +28,11 @@ class Scorer:
             score += 20
             
         # 4. PCR Z-Score (rolling statistical z; not the same bucket as bias PCR thresholds)
-        if bias == "BULLISH" and pcr_zscore > 1.0:
+        # With PCR used as a bearish-when-high metric (see MarketRegime.determine_directional_bias),
+        # bullish confirmations correspond to unusually LOW PCR, and bearish to unusually HIGH PCR.
+        if bias == "BULLISH" and pcr_zscore < -1.0:
             score += 18
-        elif bias == "BEARISH" and pcr_zscore < -1.0:
+        elif bias == "BEARISH" and pcr_zscore > 1.0:
             score += 18
         elif abs(pcr_zscore) > 0.35:
             score += 8

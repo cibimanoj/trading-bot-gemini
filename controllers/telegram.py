@@ -7,6 +7,7 @@ from aiogram.types import Message
 from config import telegram_chat_ids
 from db.database import db_instance
 from engine.portfolio_tracker import PortfolioTracker
+from services.self_check import run_self_check, format_self_check_markdown
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -115,4 +116,16 @@ async def cmd_simulate_pl(message: Message):
     except Exception:
         logger.exception("simulate_pl failed")
         await message.answer("Could not apply simulated P&L. Try again or check logs.")
+
+
+@router.message(Command("selfcheck"))
+async def cmd_selfcheck(message: Message):
+    if not await _require_allowed_chat(message):
+        return
+    try:
+        report = await run_self_check()
+        await message.answer(format_self_check_markdown(report), parse_mode="Markdown")
+    except Exception:
+        logger.exception("selfcheck failed")
+        await message.answer("Self-check failed. Check logs.")
 
