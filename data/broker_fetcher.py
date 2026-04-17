@@ -72,7 +72,13 @@ class BrokerFetcher:
             nfo_max = settings.QUOTE_STALE_NFO_SEC
             for inst, data in quotes.items():
                 if 'timestamp' in data:
-                    diff = (now_ist_naive - data['timestamp']).total_seconds()
+                    ts = data['timestamp']
+                    if isinstance(ts, datetime) and ts.tzinfo is not None:
+                        ts = ts.astimezone(TimezoneNormalizer.IST).replace(tzinfo=None)
+                    elif not isinstance(ts, datetime):
+                        fresh_quotes[inst] = data
+                        continue
+                    diff = (now_ist_naive - ts).total_seconds()
                     # Small negative slack for clock skew vs exchange timestamp
                     if inst.startswith("NSE:"):
                         is_fresh = (-5.0 <= diff <= spot_max)

@@ -2,6 +2,16 @@ import { useState, type FormEvent } from "react";
 
 type AuthMode = "login" | "register";
 
+async function readJsonSafe(r: Response): Promise<unknown> {
+  const text = await r.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 export interface AuthScreenProps {
   onAuthenticated: (token: string) => void;
 }
@@ -25,7 +35,12 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      const j = (await r.json()) as { token?: string; error?: string };
+      const raw = await readJsonSafe(r);
+      const j = raw && typeof raw === "object" ? (raw as { token?: string; error?: string }) : null;
+      if (!j) {
+        setError(`Could not sign in (${r.status}). Invalid response from server.`);
+        return;
+      }
       if (!r.ok || !j.token) {
         setError(j.error === "invalid credentials" ? "Invalid email or password." : `Could not sign in (${r.status}).`);
         return;
@@ -53,7 +68,12 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password, role: "viewer" }),
       });
-      const j = (await r.json()) as { error?: string };
+      const raw = await readJsonSafe(r);
+      const j = raw && typeof raw === "object" ? (raw as { error?: string }) : null;
+      if (!j) {
+        setError(`Registration failed (${r.status}). Invalid response from server.`);
+        return;
+      }
       if (r.status === 409) {
         setError("An account with this email already exists. Try signing in.");
         return;

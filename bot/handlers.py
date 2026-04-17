@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -7,6 +9,7 @@ from db.database import db_instance
 from engine.portfolio_tracker import PortfolioTracker
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 def _telegram_chat_allowed(message: Message) -> bool:
@@ -21,8 +24,13 @@ async def _require_allowed_chat(message: Message) -> bool:
     """Returns True if the handler should continue; otherwise replies and returns False."""
     if _telegram_chat_allowed(message):
         return True
-    import logging
-    logging.getLogger(__name__).warning(f"Unauthorized chat attempt blocked from User ID: {message.from_user.id}")
+    uid = message.from_user.id if message.from_user else None
+    logger.warning(
+        "Unauthorized Telegram command blocked (chat_id=%s, user_id=%s)",
+        message.chat.id,
+        uid,
+    )
+    await message.answer("This bot is private. Access denied.")
     return False
 
 
@@ -81,21 +89,26 @@ async def cmd_simulate_pl(message: Message):
         if len(parts) < 3:
             await message.answer("Usage: /simulate_pl <amount> <win|loss>")
             return
-        pnl = float(parts[1])
+        try:
+            pnl = float(parts[1])
+        except ValueError:
+            await message.answer("Amount must be a number. Usage: /simulate_pl <amount> <win|loss>")
+            return
         win_arg = parts[2].lower()
         if win_arg not in ["win", "loss"]:
             await message.answer("Usage: /simulate_pl <amount> <win|loss>")
             return
-            
+
         is_win = (win_arg == "win")
         if not is_win:
             pnl = -abs(pnl)
-        
+
         alert_msg = await PortfolioTracker.process_simulated_pl(pnl, is_win)
-        
+
         await message.answer(f"Simulated P&L of ₹{pnl}. Win={is_win}")
         if alert_msg:
             await message.answer(alert_msg)
-            
+
     except Exception:
-        await message.answer("Usage: /simulate_pl <amount> <win|loss>")
+        logger.exception("simulate_pl failed")
+        await message.answer("Could not apply simulated P&L. Try again or check logs.")

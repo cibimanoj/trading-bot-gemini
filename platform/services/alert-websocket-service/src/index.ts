@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     );
   });
 
-  setInterval(() => {
+  const pingTimer = setInterval(() => {
     for (const c of clients) {
       if (!c.alive) {
         c.socket.terminate();
@@ -77,6 +77,33 @@ async function main(): Promise<void> {
       }
     }
   }, 25_000);
+
+  const shutdown = async (signal: string) => {
+    app.log.info({ signal }, "shutting down");
+    clearInterval(pingTimer);
+    for (const c of clients) {
+      try {
+        c.socket.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    clients.clear();
+    try {
+      await sub.quit();
+    } catch (err) {
+      app.log.warn({ err }, "redis quit");
+    }
+    await app.close();
+    process.exit(0);
+  };
+
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
 }

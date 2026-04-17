@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import bcrypt from "bcryptjs";
 import pg from "pg";
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
 
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
+  await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   app.get("/health", async () => ({ ok: true, service: "user" }));
@@ -101,8 +103,12 @@ async function main(): Promise<void> {
     const token = auth.slice(7);
     const payload = parseJwtSync(token, env.JWT_SECRET);
     if (!payload) return reply.code(401).send({ error: "invalid token" });
+    const userId = Number.parseInt(String(payload.sub), 10);
+    if (!Number.isFinite(userId)) {
+      return reply.code(401).send({ error: "invalid token" });
+    }
     const r = await pool.query("SELECT id, email, role FROM users WHERE id = $1", [
-      payload.sub,
+      userId,
     ]);
     const row = r.rows[0] as
       | { id: number; email: string; role: string }

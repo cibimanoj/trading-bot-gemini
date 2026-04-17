@@ -81,6 +81,11 @@ class EngineScheduler:
         except Exception as e:
             logger.error(f"Error in scheduler tick: {e}", exc_info=True)
 
+    def stop(self) -> None:
+        if self.scheduler.running:
+            self.scheduler.shutdown(wait=False)
+            logger.info("Scheduler stopped.")
+
     def start(self):
         # Run every 60 seconds during market hours
         # For testing, we run strictly on interval
